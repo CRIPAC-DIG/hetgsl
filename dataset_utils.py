@@ -14,6 +14,10 @@ from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork
 
 
 def build_dataset(name, split='public'):
+    """
+    to do: adj_remove_eye transform
+
+    """
     root = 'data'
     if name in ['Cora', 'Citeseer', 'Pubmed']:
         dataset =  Planetoid(root, name, split, transform=T.NormalizeFeatures())
