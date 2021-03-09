@@ -1,0 +1,13 @@
+data/
+runs/
+**/__pycache__/
+**/.vscode/
+*.pkl
+*.pth
+*.png
+*.txt
+*.pt
+*.swp
+*.zip
+*.gz
+**/.ipynb_checkpoints/
