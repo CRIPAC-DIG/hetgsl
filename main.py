@@ -8,49 +8,72 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 import torch_geometric
+from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork
 
 
-from dataset_utils import build_dataset
+from dataset_utils import build_dataset, get_mask
 from model import CPGNN
 from util import edge_index_to_sparse_tensor
 
 
 @torch.no_grad()
-def test(model, data, x, adj, y, train_mask):
+def test(model, data, x, adj, y, train_mask, val_mask, test_mask):
     model.eval()
     accs = []
-    pred = F.softmax(model(x, adj, y, train_mask), dim=-1)
-    for _, mask in data('train_mask', 'val_mask', 'test_mask'):
-        mask = mask[:, 0]
-        cur_pred = pred[mask].max(1)[1]
-        acc = cur_pred.eq(data.y[mask]).sum().item() / mask.sum().item()
-        accs.append(acc)
+    with torch.no_grad():
+        pred = F.softmax(model(x, adj, y, train_mask)[0], dim=-1)
+        # for _, mask in data('train_mask', 'val_mask', 'test_mask'):
+        #     mask = mask[:, 0]
+        for mask in (train_mask, val_mask, test_mask):
+            cur_pred = pred[mask].max(1)[1]
+            acc = cur_pred.eq(data.y[mask]).sum().item() / mask.sum().item()
+            accs.append(acc)
     return accs
 
-def main(args):
-    dataset = build_dataset(args.dataset)
-    data = dataset[0]
-    # pdb.set_trace()
+def train(dataset, train_mask, val_mask, test_mask, args):
     model = CPGNN(dataset.num_features, args.hidden, int(dataset.num_classes), args)
+    optimizer = torch.optim.Adam([
+        dict(params=model.belief_estimator.parameters(), weight_decay=5e-4), 
+        dict(params=model.linbp.parameters(), weight_decay=0)
+    ], lr=args.lr)
+
+    data = dataset[0]
     x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr
     adj = edge_index_to_sparse_tensor(data, edge_index)
 
-    optimizer = torch.optim.Adam([
-        dict(params=model.belief_estimator.parameters(), weight_decay=5e-4)
-    ], lr=args.lr)
-
-    train_mask = data.train_mask[:, 0]
     y = F.one_hot(data.y.long())
-    for epoch in range(args.epoch):
+    for epoch in range(args.epoch_one):
         model.train()
-        pred = model(x, adj, y, train_mask)
+        pred = model.forward_one(x, adj, y, train_mask)
         # pdb.set_trace()
         loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long())
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        accs = test(model, data, x, adj, y, train_mask)
+        accs = test(model, data, x, adj, y, train_mask, val_mask, test_mask)
         print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}')
+    
+    for epoch in range(args.epoch_one, args.epoch):
+        model.train()
+        pred, R, reg_h_loss = model(x, adj, y, train_mask)
+        # pdb.set_trace()
+        loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + F.cross_entropy(R[train_mask], data.y[train_mask].long()) + reg_h_loss
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        accs = test(model, data, x, adj, y, train_mask, val_mask, test_mask)
+        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}')
+
+def main(args):
+    dataset = build_dataset(args.dataset)
+    train_masks, val_masks, test_masks = get_mask(dataset)
+
+    for i, (train_mask, val_mask, test_mask) in enumerate(zip(train_masks, val_masks, test_masks)):
+        print(f'***** Split {i} starts *****\n')
+        train(dataset, train_mask, val_mask, test_mask, args)
+        break
+        print('\n\n\n')
+
 
 if __name__ == '__main__':
     
@@ -59,8 +82,9 @@ if __name__ == '__main__':
     parser.add_argument('--hidden', type=int, default=16)
     parser.add_argument('--dropout', default=0.5, type=float)
     parser.add_argument('--lr', default=0.01, type=float)
-    parser.add_argument('--epoch', type=int, default=200)
-    parser.add_argument('--iterations', type=int, default=1)
+    parser.add_argument('--epoch_one', type=int, default=400)
+    parser.add_argument('--epoch', type=int, default=2000)
+    parser.add_argument('--iterations', type=int, default=2)
     args = parser.parse_args()
     main(args)
 

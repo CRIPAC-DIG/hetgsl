@@ -4,6 +4,7 @@
 
 import torch
 import math
+import pdb
 
 import os.path as osp
 import numpy as np
@@ -30,3 +31,24 @@ def build_dataset(name, split='public'):
     # dataset.adj_remove_eye()
 
     return dataset
+
+
+def get_mask(dataset):
+    data = dataset[0]
+    train_masks, val_masks, test_masks = [], [], []
+    if isinstance(dataset, Planetoid):
+        train_masks = [data.train_mask]
+        val_masks = [data.val_mask]
+        test_masks = [data.test_mask]
+    
+    elif isinstance(dataset, WebKB) or isinstance(dataset, WikipediaNetwork):
+        for i in range(data.train_mask.shape[1]):
+            train_mask = data.train_mask[:, i]
+            val_mask = data.val_mask[:, i]
+            test_mask = data.test_mask[:, i]
+
+            train_masks.append(train_mask)
+            val_masks.append(val_mask)
+            test_masks.append(test_mask)
+
+    return (train_masks, val_masks, test_masks)

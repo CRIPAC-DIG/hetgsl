@@ -1,6 +1,7 @@
 import pdb
 
 import torch
+from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork
 
 def edge_index_to_sparse_tensor(data, edge_index):
     n = data.x.shape[0]

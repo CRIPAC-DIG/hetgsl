@@ -35,7 +35,7 @@ class CompatibilityLayer(nn.Module):
             H /= H.sum(dim=1, keepdims=True)
 
             # delta = tf.linalg.norm(H - prev_H, ord=1)
-            delta = torch.norm(H, p=1)
+            delta = torch.norm(H - prev_H, p=1)
             if delta < 1e-12:
                 converge = True
             i += 1
@@ -116,8 +116,6 @@ class LinBP(nn.Module):
             self.H_hat = nn.Parameter(H_init)
 
         
-
-
         prior_belief = F.softmax(inputs, dim=1) # eq 4
         E_hat = prior_belief - (1 / y_train.shape[1]) # eq 5
         B_hat = E_hat
@@ -129,12 +127,12 @@ class LinBP(nn.Module):
            
         post_belief = B_hat + (1 / y_train.shape[1]) # eq 7, accoring to open-sourced code, but different from the paper
 
-
+        reg_h_loss = torch.norm(self.H_hat.sum(dim=-1), p=1)
 
         # self.add_loss(self.zero_reg_weight * tf.linalg.norm(
         #     tf.reduce_sum(self.non_linear_H(self.H_hat), axis=-1), ord=1)) # eq 12
 
-        return post_belief
+        return post_belief, reg_h_loss
 
 
 class CPGNN(nn.Module):
@@ -147,6 +145,9 @@ class CPGNN(nn.Module):
         # pdb.set_trace()
         R = self.belief_estimator(ipnuts)
         # prior = F.softmax(R, dim=1)
-        output = self.linbp(R, adj, y, train_mask)
+        post_belief, reg_h_loss = self.linbp(R, adj, y, train_mask)
 
-        return output
+        return post_belief, R, reg_h_loss
+
+    def forward_one(self, inputs, adj, y, train_mask):
+        return self.belief_estimator(inputs)
