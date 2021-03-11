@@ -36,6 +36,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         dict(params=model.belief_estimator.parameters(), weight_decay=5e-4), 
         dict(params=model.linbp.parameters(), weight_decay=0)
     ], lr=args.lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     data = dataset[0]
     x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr
@@ -47,6 +48,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         pred = model.forward_one(x, adj, y, train_mask)
         # pdb.set_trace()
         loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long())
+        # loss += 0.0005 * (torch.norm(model.belief_estimator.lin1.weight) ** 2 + torch.norm(model.belief_estimator.lin2.weight) ** 2 )
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -54,32 +56,41 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}')
     
     for epoch in range(args.epoch_one, args.epoch):
+        if epoch == args.epoch_one:
+            print('\n**** Start to train LinBP ****\n')
         model.train()
         pred, R, reg_h_loss = model(x, adj, y, train_mask)
         # pdb.set_trace()
-        loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + F.cross_entropy(R[train_mask], data.y[train_mask].long()) + reg_h_loss
+        # loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + F.cross_entropy(R[train_mask], data.y[train_mask].long()) + reg_h_loss
+        loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + reg_h_loss
+        # loss += 0.0005 * (torch.norm(model.belief_estimator.lin1.weight) ** 2 + torch.norm(model.belief_estimator.lin2.weight) ** 2 )
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         accs = test(model, data, x, adj, y, train_mask, val_mask, test_mask)
         print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}')
+    return accs[-1]
 
 def main(args):
     dataset = build_dataset(args.dataset)
     train_masks, val_masks, test_masks = get_mask(dataset)
 
+    test_accs = []
     for i, (train_mask, val_mask, test_mask) in enumerate(zip(train_masks, val_masks, test_masks)):
         print(f'***** Split {i} starts *****\n')
-        train(dataset, train_mask, val_mask, test_mask, args)
-        break
+        test_acc = train(dataset, train_mask, val_mask, test_mask, args)
+        test_accs.append(test_acc)
+        # break
         print('\n\n\n')
+    
+    print(f'Mean test acc {np.mean(test_accs)} \pm {np.std(test_accs)}')
 
 
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', default='Texas')
-    parser.add_argument('--hidden', type=int, default=16)
+    parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--dropout', default=0.5, type=float)
     parser.add_argument('--lr', default=0.01, type=float)
     parser.add_argument('--epoch_one', type=int, default=400)
