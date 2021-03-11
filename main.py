@@ -13,7 +13,7 @@ from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork
 
 from dataset_utils import build_dataset, get_mask
 from model import CPGNN
-from util import edge_index_to_sparse_tensor
+from util import edge_index_to_sparse_tensor, Logger, mymkdir, nowdt
 
 
 @torch.no_grad()
@@ -43,6 +43,10 @@ def train(dataset, train_mask, val_mask, test_mask, args):
     adj = edge_index_to_sparse_tensor(data, edge_index)
 
     y = F.one_hot(data.y.long())
+
+    best_val_acc = 0
+    choosed_test_acc = 0
+
     for epoch in range(args.epoch_one):
         model.train()
         pred = model.forward_one(x, adj, y, train_mask)
@@ -68,10 +72,17 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         loss.backward()
         optimizer.step()
         accs = test(model, data, x, adj, y, train_mask, val_mask, test_mask)
-        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}')
-    return accs[-1]
+        if accs[1] > best_val_acc:
+            best_val_acc = accs[2]
+            choosed_test_acc = accs[2]
+            improved = '*'
+        else:
+            improved = ''
+        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}{improved}')
+    return choosed_test_acc
 
 def main(args):
+    print(nowdt())
     dataset = build_dataset(args.dataset)
     train_masks, val_masks, test_masks = get_mask(dataset)
 
@@ -84,7 +95,7 @@ def main(args):
         # break
         print('\n\n\n')
     
-    print(f'Mean test acc {np.mean(test_accs)} \pm {np.std(test_accs)}')
+    print(f'Mean test acc {np.mean(test_accs):.4f} \pm {np.std(test_accs):.4f}')
 
 
 if __name__ == '__main__':
@@ -98,5 +109,13 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', type=int, default=2000)
     parser.add_argument('--iterations', type=int, default=2)
     args = parser.parse_args()
+
+    log_dir = 'log/cpgnn'
+    mymkdir(log_dir)
+    log_file_path = os.path.join(log_dir, f'{args.dataset}_cpgnn{args.iterations}_log.txt')
+    sys.stdout = Logger(log_file_path)
+
+    print(args)
+
     main(args)
 
