@@ -113,6 +113,7 @@ class LinBP(nn.Module):
     def forward(self, inputs, adj, y_train, train_mask):
         if not self.inited:
             with torch.no_grad():
+                # pdb.set_trace()
                 H_init = CompatibilityLayer.estimateH(adj, y_train, inputs, train_mask)
                 H_init = CompatibilityLayer.makeSymmetricH(H_init)
                 H_init -= (1 / y_train.shape[1])

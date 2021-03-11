@@ -26,12 +26,12 @@ def test(model, data, x, adj, y, train_mask, val_mask, test_mask):
         #     mask = mask[:, 0]
         for mask in (train_mask, val_mask, test_mask):
             cur_pred = pred[mask].max(1)[1]
-            acc = cur_pred.eq(data.y[mask]).sum().item() / mask.sum().item()
+            acc = cur_pred.eq(data.y.cuda()[mask]).sum().item() / mask.sum().item()
             accs.append(acc)
     return accs
 
 def train(dataset, train_mask, val_mask, test_mask, args):
-    model = CPGNN(dataset.num_features, args.hidden, int(dataset.num_classes), args)
+    model = CPGNN(dataset.num_features, args.hidden, int(dataset.num_classes), args).cuda()
     optimizer = torch.optim.Adam([
         dict(params=model.belief_estimator.parameters(), weight_decay=5e-4), 
         dict(params=model.linbp.parameters(), weight_decay=0)
@@ -39,10 +39,10 @@ def train(dataset, train_mask, val_mask, test_mask, args):
     # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     data = dataset[0]
-    x, edge_index, edge_weight = data.x, data.edge_index, data.edge_attr
-    adj = edge_index_to_sparse_tensor(data, edge_index)
+    x, edge_index = data.x.cuda(), data.edge_index
+    adj = edge_index_to_sparse_tensor(data, edge_index).cuda()
 
-    y = F.one_hot(data.y.long())
+    y = F.one_hot(data.y.long()).cuda()
 
     best_val_acc = 0
     choosed_test_acc = 0
@@ -51,7 +51,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         model.train()
         pred = model.forward_one(x, adj, y, train_mask)
         # pdb.set_trace()
-        loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long())
+        loss = F.cross_entropy(pred[train_mask], data.y.cuda()[train_mask].long())
         # loss += 0.0005 * (torch.norm(model.belief_estimator.lin1.weight) ** 2 + torch.norm(model.belief_estimator.lin2.weight) ** 2 )
         optimizer.zero_grad()
         loss.backward()
@@ -66,7 +66,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         pred, R, reg_h_loss = model(x, adj, y, train_mask)
         # pdb.set_trace()
         # loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + F.cross_entropy(R[train_mask], data.y[train_mask].long()) + reg_h_loss
-        loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + reg_h_loss
+        loss = F.cross_entropy(pred[train_mask], data.y.cuda()[train_mask].long()) + reg_h_loss
         # loss += 0.0005 * (torch.norm(model.belief_estimator.lin1.weight) ** 2 + torch.norm(model.belief_estimator.lin2.weight) ** 2 )
         optimizer.zero_grad()
         loss.backward()
@@ -90,7 +90,7 @@ def main(args):
     for i, (train_mask, val_mask, test_mask) in enumerate(zip(train_masks, val_masks, test_masks)):
         print(f'***** Split {i} starts *****')
         print(f'Train: {train_mask.sum().item()}, Val: {val_mask.sum().item()}, Test: {test_mask.sum().item()}\n')
-        test_acc = train(dataset, train_mask, val_mask, test_mask, args)
+        test_acc = train(dataset, train_mask.cuda(), val_mask.cuda(), test_mask.cuda(), args)
         test_accs.append(test_acc)
         # break
         print('\n\n\n')
