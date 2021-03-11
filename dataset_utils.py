@@ -5,6 +5,7 @@
 import torch
 import math
 import pdb
+import os
 
 import os.path as osp
 import numpy as np
@@ -14,14 +15,14 @@ import torch_geometric.transforms as T
 from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork
 
 
-def build_dataset(name, split='public'):
+def build_dataset(name):
     """
     to do: adj_remove_eye transform
 
     """
     root = 'data'
     if name in ['Cora', 'Citeseer', 'Pubmed']:
-        dataset =  Planetoid(root, name, split, transform=T.NormalizeFeatures())
+        dataset =  Planetoid(root, name, 'random', transform=T.NormalizeFeatures())
     elif name in ['Squirrel', 'Chameleon']:
         dataset = WikipediaNetwork(root, name, transform=T.NormalizeFeatures())
     elif name in ['Texas', ]:
@@ -41,10 +42,22 @@ def get_mask(dataset):
     data = dataset[0]
     train_masks, val_masks, test_masks = [], [], []
     if isinstance(dataset, Planetoid):
-        train_masks = [data.train_mask]
-        val_masks = [data.val_mask]
-        test_masks = [data.test_mask]
-        print(f'Train {train_masks[0].sum().item()}, val {val_masks[0].sum().item()}, test {test_masks[0].sum().item()}')
+        raw_dir = dataset.raw_dir
+        splits = os.listdir(raw_dir)
+        splits = [os.path.join(raw_dir, split) for split in splits if split.endswith('.npz')]
+        assert len(splits) == 10
+
+        for f in splits:
+            tmp = np.load(f)
+            train_masks += [torch.from_numpy(tmp['train_mask']).to(torch.bool)]
+            val_masks += [torch.from_numpy(tmp['val_mask']).to(torch.bool)]
+            test_masks += [torch.from_numpy(tmp['test_mask']).to(torch.bool)]
+        # train_mask = torch.stack(train_masks, dim=1)
+        # val_mask = torch.stack(val_masks, dim=1)
+        # test_mask = torch.stack(test_masks, dim=1)
+
+        return (train_masks, val_masks, test_masks)
+
     
     elif isinstance(dataset, WebKB) or isinstance(dataset, WikipediaNetwork):
         for i in range(data.train_mask.shape[1]):

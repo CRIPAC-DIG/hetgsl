@@ -77,7 +77,8 @@ def main(args):
 
     test_accs = []
     for i, (train_mask, val_mask, test_mask) in enumerate(zip(train_masks, val_masks, test_masks)):
-        print(f'***** Split {i} starts *****\n')
+        print(f'***** Split {i} starts *****')
+        print(f'Train: {train_mask.sum().item()}, Val: {val_mask.sum().item()}, Test: {test_mask.sum().item()}\n')
         test_acc = train(dataset, train_mask, val_mask, test_mask, args)
         test_accs.append(test_acc)
         # break
