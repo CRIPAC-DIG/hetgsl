@@ -65,48 +65,27 @@ class CompatibilityLayer(nn.Module):
 
     @classmethod
     def estimateH(self, adj, y, init_inputs=None, sample_mask=None):
-        # RWNormAdj = (adj / tf.sparse.reduce_sum(adj, axis=1, keepdims=True))
-        # raw_normed_adj = adj / adj.sum(dim=1, keepdims=True)
-        # raw_normed_adj = adj / torch.sparse.sum(adj, dim=1)
         raw_normed_adj = normalize_sparse_tensor(adj) # make row sum to 1
         inputs = F.softmax(init_inputs, dim=1)
         inputs = inputs * (1 - sample_mask[:, None].float()) + y * sample_mask[:, None] # eq 10
         y = y * sample_mask[:, None]
         
-        # nodeH = tf.sparse.sparse_dense_matmul(RWNormAdj, inputs) # eq 11
         nodeH = raw_normed_adj @ inputs
 
-        # following to do
-        # H = tf.concat([
-        #     tf.reduce_mean(tf.gather(nodeH, tf.where(y[:, i]), axis=0), axis=0) for i in range(y.shape[1])
-        # ], axis=0)
         """
         nodeH: (n, c)
         y: (n, c)
         """
-        # H = torch.cat([torch.mean(torch.gather(nodeH, 0, torch.where(y[:, i])), axis=0) for i in range(y.shape[1])], axis=0)
         H = torch.stack([torch.mean(nodeH[torch.where(y[:, i])[0]], axis=0) for i in range(y.shape[1])])
-        # H = y @ nodeH
         assert H.shape[0] == y.shape[1]
         assert H.shape[1] == y.shape[1]        
 
-        # H_nan = tf.math.is_nan(H)
         H_nan = torch.isnan(H)
 
-        # if tf.reduce_any(H_nan):
-        #     H = tf.where(H_nan, tf.transpose(H), H)
-        #     H_nan = tf.math.is_nan(H)
         if torch.any(H_nan):
             H = torch.where(H_nan, H.T, H)
             H_nan = torch.isnan(H)
 
-        # if tf.reduce_any(H_nan):
-        #     H = tf.where(H_nan, 0, H)
-        #     H_miss = (1 - tf.reduce_sum(H, axis=1, keepdims=True))
-        #     H_miss /= tf.reduce_sum(tf.cast(H_nan, H.dtype),
-        #                             axis=1, keepdims=True)
-        #     H = tf.where(H_nan, H_miss, H)
-        # pdb.set_trace()
         if torch.any(H_nan):
             H = torch.where(H_nan, torch.zeros_like(H), H)
             H_miss = (1 - torch.sum(H, axis=1, keepdims=True))
@@ -119,20 +98,15 @@ class LinBP(nn.Module):
     def __init__(self, iterations, out_dim):
         super(LinBP, self).__init__()
         self.iterations = iterations
-        # self.H_hat = nn.Parameter(int(y_train.shape[1]), int(y_train.shape[1]))
-        # self.H_hat = None
         self.H_hat = nn.Parameter(torch.zeros(out_dim, out_dim))
         self.inited = False
         
-
     def forward(self, inputs, adj, y_train, train_mask):
         if not self.inited:
             with torch.no_grad():
-                # pdb.set_trace()
                 H_init = CompatibilityLayer.estimateH(adj, y_train, inputs, train_mask)
                 H_init = CompatibilityLayer.makeSymmetricH(H_init)
                 H_init -= (1 / y_train.shape[1])
-                # self.H_hat = nn.Parameter(H_init)
                 self.H_hat.data = H_init
             self.inited = True
 
@@ -149,9 +123,6 @@ class LinBP(nn.Module):
         post_belief = B_hat + (1 / y_train.shape[1]) # eq 7, accoring to open-sourced code, but different from the paper
 
         reg_h_loss = torch.norm(self.H_hat.sum(dim=1), p=1)
-
-        # self.add_loss(self.zero_reg_weight * tf.linalg.norm(
-        #     tf.reduce_sum(self.non_linear_H(self.H_hat), axis=-1), ord=1)) # eq 12
 
         return post_belief, reg_h_loss
 
