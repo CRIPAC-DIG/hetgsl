@@ -21,7 +21,7 @@ def test(model, data, x, adj, y, train_mask, val_mask, test_mask):
     model.eval()
     accs = []
     with torch.no_grad():
-        pred = F.softmax(model(x, adj, y, train_mask)[0], dim=-1)
+        pred = F.softmax(model(data, x, adj, y, train_mask)[0], dim=-1)
         # for _, mask in data('train_mask', 'val_mask', 'test_mask'):
         #     mask = mask[:, 0]
         for mask in (train_mask, val_mask, test_mask):
@@ -49,7 +49,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
 
     for epoch in range(args.epoch_one):
         model.train()
-        pred = model.forward_one(x, adj, y, train_mask)
+        pred = model.forward_one(data, x, adj, y, train_mask)
         # pdb.set_trace()
         loss = F.cross_entropy(pred[train_mask], data.y.cuda()[train_mask].long())
         # loss += 0.0005 * (torch.norm(model.belief_estimator.lin1.weight) ** 2 + torch.norm(model.belief_estimator.lin2.weight) ** 2 )
@@ -63,7 +63,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         if epoch == args.epoch_one:
             print('\n**** Start to train LinBP ****\n')
         model.train()
-        pred, R, reg_h_loss = model(x, adj, y, train_mask)
+        pred, R, reg_h_loss = model(data, x, adj, y, train_mask)
         # pdb.set_trace()
         # loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + F.cross_entropy(R[train_mask], data.y[train_mask].long()) + reg_h_loss
         loss = F.cross_entropy(pred[train_mask], data.y.cuda()[train_mask].long()) + reg_h_loss
@@ -108,11 +108,21 @@ if __name__ == '__main__':
     parser.add_argument('--epoch_one', type=int, default=400)
     parser.add_argument('--epoch', type=int, default=2000)
     parser.add_argument('--iterations', type=int, default=2)
+    parser.add_argument('--mlp', action='store_true', default=False)
+    parser.add_argument('--cheb', action='store_true', default=False)
     args = parser.parse_args()
+
+    assert args.mlp or args.cheb
 
     log_dir = 'log/cpgnn'
     mymkdir(log_dir)
-    log_file_path = os.path.join(log_dir, f'{args.dataset}_cpgnn{args.iterations}_log.txt')
+    if args.mlp: 
+        model_kind = 'mlp'
+    elif args.cheb:
+        model_kind = 'cheb'
+    else:
+        raise NotImplementedError('MLP or Cheb ?')
+    log_file_path = os.path.join(log_dir, f'{args.dataset}_cpgnn-{model_kind}-{args.iterations}_log.txt')
     sys.stdout = Logger(log_file_path)
 
     print(args)
