@@ -110,9 +110,8 @@ if __name__ == '__main__':
     parser.add_argument('--iterations', type=int, default=2)
     parser.add_argument('--mlp', action='store_true', default=False)
     parser.add_argument('--cheb', action='store_true', default=False)
+    parser.add_argument('--gcn', action='store_true', default=False)
     args = parser.parse_args()
-
-    assert args.mlp or args.cheb
 
     log_dir = 'log/cpgnn'
     mymkdir(log_dir)
@@ -120,8 +119,10 @@ if __name__ == '__main__':
         model_kind = 'mlp'
     elif args.cheb:
         model_kind = 'cheb'
+    elif args.gcn:
+        model_kind = 'gcn'
     else:
-        raise NotImplementedError('MLP or Cheb ?')
+        raise NotImplementedError('MLP, GCN or Cheb ?')
     log_file_path = os.path.join(log_dir, f'{args.dataset}_cpgnn-{model_kind}-{args.iterations}_log.txt')
     sys.stdout = Logger(log_file_path)
 

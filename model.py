@@ -35,6 +35,20 @@ class ChebNet(nn.Module):
         x = self.conv2(x, edge_index, edge_weight)
         return x
 
+class GCN(nn.Module):
+    def __init__(self, num_features, hidden, out_dim, dropout):
+        super(GCN, self).__init__()
+        self.conv1 = GCNConv(num_features, hidden)
+        self.conv2 = GCNConv(hidden, out_dim)
+        self.dropout = dropout
+
+    def forward(self, x, edge_index, edge_weight):
+        pdb.set_trace()
+        x = F.relu(self.conv1(x, edge_index, edge_weight))
+        x = F.dropout(x, training=self.training, p=self.dropout)
+        x = self.conv2(x, edge_index, edge_weight)
+        return x
+
         
 class CompatibilityLayer(nn.Module):
     @staticmethod
@@ -134,6 +148,8 @@ class CPGNN(nn.Module):
             self.belief_estimator = MLP(num_features, hidden, out_dim, args.dropout)
         elif args.cheb:
             self.belief_estimator = ChebNet(num_features, hidden, out_dim, args.dropout)
+        elif args.gcn:
+            self.belief_estimator = GCN(num_features, hidden, out_dim, args.dropout)
         else:
             raise NotImplementedError('Belief estimator not specified, MLP or ChebNet ?')
         self.linbp = LinBP(args.iterations, out_dim)
