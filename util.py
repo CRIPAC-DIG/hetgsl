@@ -32,7 +32,14 @@ def normalize_sparse_tensor(adj, fill_value=1):
     return torch.sparse.FloatTensor(edge_index, values, shape)
 
 
+def row_sum_one_normalize(raw_adj):
+    assert raw_adj.min().item() >= 0
 
+    row_sum = raw_adj.sum(1, keepdim=True)
+    r_inv = row_sum ** (-1)
+    r_inv[torch.isinf(r_inv)] = 0
+
+    return raw_adj * r_inv
 
 def set_seed(seed):
     import numpy as np

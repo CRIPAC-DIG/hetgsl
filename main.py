@@ -3,13 +3,11 @@ import sys
 import argparse
 import numpy as np
 import pdb
+from tqdm import tqdm
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F 
-import torch_geometric
-from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork
-
 
 from dataset_utils import build_dataset, get_mask
 from model import CPGNN
@@ -17,77 +15,75 @@ from util import edge_index_to_sparse_tensor, Logger, mymkdir, nowdt
 
 
 @torch.no_grad()
-def test(model, data, x, adj, y, train_mask, val_mask, test_mask):
+def test(model, raw_adj, normed_adj, x, y, y_onehot, train_mask, val_mask, test_mask):
     model.eval()
     accs = []
     with torch.no_grad():
-        pred = F.softmax(model(data, x, adj, y, train_mask)[0], dim=-1)
-        # for _, mask in data('train_mask', 'val_mask', 'test_mask'):
-        #     mask = mask[:, 0]
+        pred = F.softmax(model(raw_adj, normed_adj, x,
+                               y_onehot, train_mask)[0], dim=-1)
         for mask in (train_mask, val_mask, test_mask):
             cur_pred = pred[mask].max(1)[1]
-            acc = cur_pred.eq(data.y.cuda()[mask]).sum().item() / mask.sum().item()
+            acc = cur_pred.eq(y[mask]).sum().item() / mask.sum().item()
             accs.append(acc)
     return accs
 
 def train(dataset, train_mask, val_mask, test_mask, args):
-    model = CPGNN(dataset.num_features, args.hidden, int(dataset.num_classes), args).cuda()
+    # pdb.set_trace()
+    model = CPGNN(dataset['num_feature'], args.hidden, dataset['num_class'], args).cuda()
     optimizer = torch.optim.Adam([
         dict(params=model.belief_estimator.parameters(), weight_decay=5e-4), 
         dict(params=model.linbp.parameters(), weight_decay=0)
     ], lr=args.lr)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    data = dataset[0]
-    x, edge_index = data.x.cuda(), data.edge_index
-    adj = edge_index_to_sparse_tensor(data, edge_index).cuda()
-
-    y = F.one_hot(data.y.long()).cuda()
+    x = dataset['features'].cuda()
+    normed_adj = dataset['normed_adj'].cuda()
+    raw_adj = dataset['raw_adj'].cuda()
+    y = dataset['labels'].cuda()
+    y_onehot = F.one_hot(y)
 
     best_val_acc = 0
+    best_val_epoch = -1
     choosed_test_acc = 0
 
-    for epoch in range(args.epoch_one):
+    print(f'Pre-train for {args.epoch_one} epochs')
+    for epoch in tqdm(range(args.epoch_one)):
         model.train()
-        pred = model.forward_one(data, x, adj, y, train_mask)
-        # pdb.set_trace()
-        loss = F.cross_entropy(pred[train_mask], data.y.cuda()[train_mask].long())
-        # loss += 0.0005 * (torch.norm(model.belief_estimator.lin1.weight) ** 2 + torch.norm(model.belief_estimator.lin2.weight) ** 2 )
+        pred = model.forward_one(normed_adj, x)
+        loss = F.cross_entropy(pred[train_mask], y[train_mask])
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        accs = test(model, data, x, adj, y, train_mask, val_mask, test_mask)
-        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}')
     
-    for epoch in range(args.epoch_one, args.epoch):
+    for epoch in tqdm(range(args.epoch_one, args.epoch)):
         if epoch == args.epoch_one:
             print('\n**** Start to train LinBP ****\n')
         model.train()
-        pred, R, reg_h_loss = model(data, x, adj, y, train_mask)
-        # pdb.set_trace()
-        # loss = F.cross_entropy(pred[train_mask], data.y[train_mask].long()) + F.cross_entropy(R[train_mask], data.y[train_mask].long()) + reg_h_loss
-        loss = F.cross_entropy(pred[train_mask], data.y.cuda()[train_mask].long()) + reg_h_loss
-        # loss += 0.0005 * (torch.norm(model.belief_estimator.lin1.weight) ** 2 + torch.norm(model.belief_estimator.lin2.weight) ** 2 )
+        pred, R, reg_h_loss = model(
+            raw_adj, normed_adj, x, y_onehot, train_mask)
+        loss = F.cross_entropy(pred[train_mask], y[train_mask]) + reg_h_loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        accs = test(model, data, x, adj, y, train_mask, val_mask, test_mask)
+        accs = test(model, raw_adj, normed_adj, x, y,
+                    y_onehot, train_mask, val_mask, test_mask)
         if accs[1] > best_val_acc:
-            best_val_acc = accs[2]
+            best_val_acc = accs[1]
             choosed_test_acc = accs[2]
             improved = '*'
+            best_val_epoch = epoch
         else:
             improved = ''
         print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}{improved}')
+        # if epoch - best_val_epoch > 100:
+        #     break
     return choosed_test_acc
 
 def main(args):
     print(nowdt())
     dataset = build_dataset(args.dataset)
-    train_masks, val_masks, test_masks = get_mask(dataset)
 
     test_accs = []
-    for i, (train_mask, val_mask, test_mask) in enumerate(zip(train_masks, val_masks, test_masks)):
+    for i, (train_mask, val_mask, test_mask) in enumerate(zip(dataset['train_masks'], dataset['val_masks'], dataset['test_masks'])):
         print(f'***** Split {i} starts *****')
         print(f'Train: {train_mask.sum().item()}, Val: {val_mask.sum().item()}, Test: {test_mask.sum().item()}\n')
         test_acc = train(dataset, train_mask.cuda(), val_mask.cuda(), test_mask.cuda(), args)
@@ -95,6 +91,8 @@ def main(args):
         # break
         print('\n\n\n')
     
+    print(f'For {len(dataset["train_masks"])} splits')
+    print(sorted(test_accs))
     print(f'Mean test acc {np.mean(test_accs):.4f} \pm {np.std(test_accs):.4f}')
 
 
@@ -107,23 +105,13 @@ if __name__ == '__main__':
     parser.add_argument('--lr', default=0.01, type=float)
     parser.add_argument('--epoch_one', type=int, default=400)
     parser.add_argument('--epoch', type=int, default=2000)
-    parser.add_argument('--iterations', type=int, default=2)
-    parser.add_argument('--mlp', action='store_true', default=False)
-    parser.add_argument('--cheb', action='store_true', default=False)
-    parser.add_argument('--gcn', action='store_true', default=False)
+    parser.add_argument('--iterations', type=int, default=1)
+    parser.add_argument('--model', type=str, default='gcn')
     args = parser.parse_args()
 
     log_dir = 'log/cpgnn'
     mymkdir(log_dir)
-    if args.mlp: 
-        model_kind = 'mlp'
-    elif args.cheb:
-        model_kind = 'cheb'
-    elif args.gcn:
-        model_kind = 'gcn'
-    else:
-        raise NotImplementedError('MLP, GCN or Cheb ?')
-    log_file_path = os.path.join(log_dir, f'{args.dataset}_cpgnn-{model_kind}-{args.iterations}_log.txt')
+    log_file_path = os.path.join(log_dir, f'{args.dataset}_cpgnn-{args.model}-{args.iterations}_log.txt')
     sys.stdout = Logger(log_file_path)
 
     print(args)

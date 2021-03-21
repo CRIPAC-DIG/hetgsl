@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F 
 from torch_geometric.nn import GCNConv, ChebConv
 
-from util import normalize_sparse_tensor
+from util import normalize_sparse_tensor, row_sum_one_normalize
 
 
 class MLP(nn.Module):
@@ -35,19 +35,46 @@ class ChebNet(nn.Module):
         x = self.conv2(x, edge_index, edge_weight)
         return x
 
+
+class GCNLayer(nn.Module):
+    def __init__(self, in_features, out_features, bias=False):
+        super(GCNLayer, self).__init__()
+        self.weight = torch.Tensor(in_features, out_features)
+        self.weight = nn.Parameter(nn.init.xavier_uniform_(self.weight))
+        if bias:
+            self.bias = torch.Tensor(out_features)
+            self.bias = nn.Parameter(nn.init.xavier_uniform_(self.bias))
+        else:
+            self.register_parameter('bias', None)
+
+
+    def forward(self, input, normed_adj, batch_norm=True):
+        support = torch.matmul(input, self.weight)
+        output = torch.matmul(normed_adj, support)
+
+        if self.bias is not None:
+            output = output + self.bias
+
+        return output
+
+
 class GCN(nn.Module):
-    def __init__(self, num_features, hidden, out_dim, dropout):
+    def __init__(self, nfeat, nhid, nclass, dropout):
         super(GCN, self).__init__()
-        self.conv1 = GCNConv(num_features, hidden)
-        self.conv2 = GCNConv(hidden, out_dim)
         self.dropout = dropout
 
-    def forward(self, x, edge_index, edge_weight):
-        pdb.set_trace()
-        x = F.relu(self.conv1(x, edge_index, edge_weight))
-        x = F.dropout(x, training=self.training, p=self.dropout)
-        x = self.conv2(x, edge_index, edge_weight)
-        return x
+        self.conv1 = GCNLayer(nfeat, nhid)
+        self.conv2 = GCNLayer(nhid, nclass)
+
+
+    def forward(self, normed_adj, features):
+        node_vec = torch.relu(self.conv1(features, normed_adj))
+        node_vec = F.dropout(node_vec, self.dropout, training=self.training)
+
+        logits = self.conv2(node_vec, normed_adj)
+
+        # return logits, node_vec
+        return logits
 
         
 class CompatibilityLayer(nn.Module):
@@ -78,13 +105,17 @@ class CompatibilityLayer(nn.Module):
         return 0.5 * (H + H.T)
 
     @classmethod
-    def estimateH(self, adj, y, init_inputs=None, sample_mask=None):
-        raw_normed_adj = normalize_sparse_tensor(adj) # make row sum to 1
+    def estimateH(self, raw_adj, y, init_inputs=None, sample_mask=None):
+
+        # raw_normed_adj = normalize_sparse_tensor(raw_adj)  # make row sum to 1
+        row_normed_adj = row_sum_one_normalize(raw_adj)
+        y_onehot = F.one_hot(y)
+
         inputs = F.softmax(init_inputs, dim=1)
         inputs = inputs * (1 - sample_mask[:, None].float()) + y * sample_mask[:, None] # eq 10
         y = y * sample_mask[:, None]
         
-        nodeH = raw_normed_adj @ inputs
+        nodeH = row_normed_adj @ inputs
 
         """
         nodeH: (n, c)
@@ -116,6 +147,8 @@ class LinBP(nn.Module):
         self.inited = False
         
     def forward(self, inputs, adj, y_train, train_mask):
+        # pdb.set_trace()
+
         if not self.inited:
             with torch.no_grad():
                 H_init = CompatibilityLayer.estimateH(adj, y_train, inputs, train_mask)
@@ -144,33 +177,29 @@ class LinBP(nn.Module):
 class CPGNN(nn.Module):
     def __init__(self, num_features, hidden, out_dim, args):
         super(CPGNN, self).__init__()
-        if args.mlp:
+        if args.model == 'mlp':
             self.belief_estimator = MLP(num_features, hidden, out_dim, args.dropout)
-        elif args.cheb:
+        elif args.model == 'cheb':
             self.belief_estimator = ChebNet(num_features, hidden, out_dim, args.dropout)
-        elif args.gcn:
+        elif args.model == 'gcn':
             self.belief_estimator = GCN(num_features, hidden, out_dim, args.dropout)
         else:
             raise NotImplementedError('Belief estimator not specified, MLP or ChebNet ?')
         self.linbp = LinBP(args.iterations, out_dim)
 
-    def forward(self, data, inputs, adj, y, train_mask):
-        # pdb.set_trace()
-        edge_index = data.edge_index.cuda()
-        if data.edge_attr is not None:
-            edge_weight = data.attr.cuda()
-        else:
-            edge_weight = None
-        R = self.belief_estimator(inputs, edge_index, edge_weight)
-        # prior = F.softmax(R, dim=1)
-        post_belief, reg_h_loss = self.linbp(R, adj, y, train_mask)
+
+    def forward(self, raw_adj, normed_adj, features, y_onehot, train_mask):
+        """
+        use linbp
+        """
+        R = self.belief_estimator(normed_adj, features)
+        post_belief, reg_h_loss = self.linbp(R, raw_adj, y_onehot, train_mask)
 
         return post_belief, R, reg_h_loss
 
-    def forward_one(self, data, inputs, adj, y, train_mask):
-        edge_index = data.edge_index.cuda()
-        if data.edge_attr is not None:
-            edge_weight = data.attr.cuda()
-        else:
-            edge_weight = None
-        return self.belief_estimator(inputs, edge_index, edge_weight)
+
+    def forward_one(self, normed_adj, features):
+        """
+        pretrain
+        """
+        return self.belief_estimator(normed_adj, features)
