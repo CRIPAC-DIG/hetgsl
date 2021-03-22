@@ -59,7 +59,7 @@ def normalize_sparse_adj(mx):
     return mx.dot(r_mat_inv_sqrt).transpose().dot(r_mat_inv_sqrt)
 
 
-def build_dataset(name, sparse_init_adj=False):
+def build_dataset(name, sparse_init_adj=False, to_cuda=False):
     """
     to do: adj_remove_eye transform
 
@@ -111,6 +111,10 @@ def build_dataset(name, sparse_init_adj=False):
         'num_feature': num_feature,
         'num_class': num_class
     }
+    if to_cuda:
+        for key in dataset:
+            if isinstance(dataset[key], torch.Tensor):
+                dataset[key] = dataset[key].cuda()
     return dataset
 
 def get_mask(dataset):

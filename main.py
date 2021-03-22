@@ -28,13 +28,11 @@ def test(model, raw_adj, normed_adj, x, y, y_onehot, train_mask, val_mask, test_
     return accs
 
 def train(dataset, train_mask, val_mask, test_mask, args):
-    # pdb.set_trace()
-    model = CPGNN(dataset['num_feature'], args.hidden, dataset['num_class'], args).cuda()
+    model = CPGNN(dataset, args).cuda()
 
     weight_decay_params = []
     no_weight_decay_params = []
     for name, param in model.named_parameters():
-        # pdb.set_trace()
         if param.requires_grad and name != 'H':
             weight_decay_params.append(param)
         if param.requires_grad and name == 'H':
@@ -44,14 +42,10 @@ def train(dataset, train_mask, val_mask, test_mask, args):
                 dict(params=weight_decay_params, weight_decay=5e-4),
                 dict(params=no_weight_decay_params, weight_decay=0.)
             ], lr=args.lr)
-    # optimizer = torch.optim.Adam([
-    #     dict(params=model.belief_estimator.parameters(), weight_decay=5e-4), 
-    #     dict(params=model.linbp.parameters(), weight_decay=0)
-    # ], lr=args.lr)
-    x = dataset['features'].cuda()
-    normed_adj = dataset['normed_adj'].cuda()
-    raw_adj = dataset['raw_adj'].cuda()
-    y = dataset['labels'].cuda()
+    x = dataset['features']
+    normed_adj = dataset['normed_adj']
+    raw_adj = dataset['raw_adj']
+    y = dataset['labels']
     y_onehot = F.one_hot(y)
 
     best_val_acc = 0
@@ -71,8 +65,6 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         if epoch == args.epoch_pretrain:
             print('\n**** Start to train LinBP ****\n')
         model.train()
-        # pred, R, reg_h_loss = model(
-        #     raw_adj, normed_adj, x, y_onehot, train_mask)
         pred = model.forward(raw_adj, normed_adj, x, y_onehot, train_mask)
         reg_h_loss = torch.norm(model.H.sum(dim=1), p=1)
         loss = F.cross_entropy(pred[train_mask], y[train_mask]) + reg_h_loss
@@ -95,7 +87,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
 
 def main(args):
     print(nowdt())
-    dataset = build_dataset(args.dataset)
+    dataset = build_dataset(args.dataset, to_cuda=True)
 
     test_accs = []
     for i, (train_mask, val_mask, test_mask) in enumerate(zip(dataset['train_masks'], dataset['val_masks'], dataset['test_masks'])):

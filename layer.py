@@ -73,7 +73,7 @@ class GCN(nn.Module):
         logits = self.conv2(node_vec, normed_adj)
 
         # return logits, node_vec
-        return logits
+        return logits, node_vec
 
 
 class CompatibilityLayer(nn.Module):
@@ -139,37 +139,3 @@ class CompatibilityLayer(nn.Module):
             H = torch.where(H_nan, H_miss, H)
         H = self.makeDoubleStochasticH(H, max_iterations=3000)
         return H
-
-
-class LinBP(nn.Module):
-    def __init__(self, iterations, out_dim):
-        super(LinBP, self).__init__()
-        self.iterations = iterations
-        self.H_hat = nn.Parameter(torch.zeros(out_dim, out_dim))
-        self.inited = False
-
-    def forward(self, inputs, adj, y_onehot, train_mask):
-        # pdb.set_trace()
-
-        if not self.inited:
-            with torch.no_grad():
-                H_init = CompatibilityLayer.estimateH(
-                    adj, y_onehot, inputs, train_mask)
-                H_init = CompatibilityLayer.makeSymmetricH(H_init)
-                H_init -= (1 / y_onehot.shape[1])
-                self.H_hat.data = H_init
-            self.inited = True
-
-        prior_belief = F.softmax(inputs, dim=1)  # eq 4
-        E_hat = prior_belief - (1 / y_onehot.shape[1])  # eq 5, E_hat is B^0
-        B_hat = E_hat
-
-        for i in range(self.iterations):
-            B_hat = E_hat + adj @ (B_hat @ self.H_hat)  # eq 6
-
-        # eq 7, accoring to open-sourced code, but different from the paper
-        post_belief = B_hat + (1 / y_onehot.shape[1])
-
-        reg_h_loss = torch.norm(self.H_hat.sum(dim=1), p=1)
-
-        return post_belief, reg_h_loss
