@@ -26,12 +26,13 @@ class GraphLearner(nn.Module):
         input_norm = F.normalize(input_fc, p=2, dim=-1) # 
         attention = torch.matmul(
             input_norm, input_norm.transpose(-1, -2)).mean(0)  # (n, n)
-        markoff_value = 0
+        # markoff_value = 0
 
-        attention = self.build_epsilon_neighbourhood(attention, self.epsilon, markoff_value)
+        # attention = self.build_epsilon_neighbourhood(attention, self.epsilon, markoff_value)
+        # return attention
         return attention
 
-    def build_epsilon_neighbourhood(self, attention, epsilon, markoff_value):
-        mask = (attention > epsilon).detach().float()
+    def build_epsilon_neighbourhood(self, attention, markoff_value=0):
+        mask = (attention > self.epsilon).detach().float()
         weighted_adjacency_matrix = attention * mask + markoff_value * (1 - mask)
         return weighted_adjacency_matrix

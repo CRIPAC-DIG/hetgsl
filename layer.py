@@ -104,17 +104,16 @@ class CompatibilityLayer(nn.Module):
         return 0.5 * (H + H.T)
 
     @classmethod
-    def estimateH(self, raw_adj, y, init_inputs=None, sample_mask=None):
-
+    def estimateH(self, raw_adj, y_onehot, logits=None, sample_mask=None):
+        """
+        logits: logits
+        """
         # raw_normed_adj = normalize_sparse_tensor(raw_adj)  # make row sum to 1
         row_normed_adj = row_sum_one_normalize(raw_adj)
-        y_onehot = F.one_hot(y)
 
-        inputs = F.softmax(init_inputs, dim=1)
-        inputs = inputs * \
-            (1 - sample_mask[:, None].float()) + \
-            y * sample_mask[:, None]  # eq 10
-        y = y * sample_mask[:, None]
+        inputs = F.softmax(logits, dim=1)
+        inputs = inputs * (1 - sample_mask[:, None].float()) + y_onehot * sample_mask[:, None]  # eq 10
+        y_onehot = y_onehot * sample_mask[:, None]
 
         nodeH = row_normed_adj @ inputs
 
@@ -122,10 +121,10 @@ class CompatibilityLayer(nn.Module):
         nodeH: (n, c)
         y: (n, c)
         """
-        H = torch.stack([torch.mean(nodeH[torch.where(y[:, i])[0]], axis=0)
-                         for i in range(y.shape[1])])
-        assert H.shape[0] == y.shape[1]
-        assert H.shape[1] == y.shape[1]
+        H = torch.stack([torch.mean(nodeH[torch.where(y_onehot[:, i])[0]], axis=0)
+                         for i in range(y_onehot.shape[1])])
+        assert H.shape[0] == y_onehot.shape[1]
+        assert H.shape[1] == y_onehot.shape[1]
 
         H_nan = torch.isnan(H)
 
@@ -149,27 +148,27 @@ class LinBP(nn.Module):
         self.H_hat = nn.Parameter(torch.zeros(out_dim, out_dim))
         self.inited = False
 
-    def forward(self, inputs, adj, y_train, train_mask):
+    def forward(self, inputs, adj, y_onehot, train_mask):
         # pdb.set_trace()
 
         if not self.inited:
             with torch.no_grad():
                 H_init = CompatibilityLayer.estimateH(
-                    adj, y_train, inputs, train_mask)
+                    adj, y_onehot, inputs, train_mask)
                 H_init = CompatibilityLayer.makeSymmetricH(H_init)
-                H_init -= (1 / y_train.shape[1])
+                H_init -= (1 / y_onehot.shape[1])
                 self.H_hat.data = H_init
             self.inited = True
 
         prior_belief = F.softmax(inputs, dim=1)  # eq 4
-        E_hat = prior_belief - (1 / y_train.shape[1])  # eq 5, E_hat is B^0
+        E_hat = prior_belief - (1 / y_onehot.shape[1])  # eq 5, E_hat is B^0
         B_hat = E_hat
 
         for i in range(self.iterations):
             B_hat = E_hat + adj @ (B_hat @ self.H_hat)  # eq 6
 
         # eq 7, accoring to open-sourced code, but different from the paper
-        post_belief = B_hat + (1 / y_train.shape[1])
+        post_belief = B_hat + (1 / y_onehot.shape[1])
 
         reg_h_loss = torch.norm(self.H_hat.sum(dim=1), p=1)
 
