@@ -55,7 +55,7 @@ class CPGNN(nn.Module):
         
         raw_adj = learner.build_epsilon_neighbourhood(raw_adj, markoff_value=0)
         adj = row_sum_one_normalize(raw_adj)
-        adj = self.args.graph_skip_conn * self.dataset['normed_adj'] + (1 - self.args.graph_skip_conn) * adj
+        adj = self.args.skip_conn * self.dataset['normed_adj'] + (1 - self.args.skip_conn) * adj
 
         return raw_adj, adj
 

@@ -36,8 +36,10 @@ def row_sum_one_normalize(raw_adj):
     assert raw_adj.min().item() >= 0
 
     row_sum = raw_adj.sum(1, keepdim=True)
+    row_sum[row_sum < 1e-5] = 1e10
     r_inv = row_sum ** (-1)
-    r_inv[torch.isinf(r_inv)] = 0
+    # r_inv[torch.isinf(r_inv)] = 0
+    # r_inv = row_sum
 
     return raw_adj * r_inv
 
