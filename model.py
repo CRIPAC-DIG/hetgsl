@@ -8,6 +8,7 @@ from torch_geometric.nn import GCNConv, ChebConv
 
 from util import normalize_sparse_tensor, row_sum_one_normalize
 from layer import MLP, ChebNet, GCN, LinBP
+from graphlearner import GraphLearner
 
 
 class CPGNN(nn.Module):
@@ -22,6 +23,16 @@ class CPGNN(nn.Module):
         else:
             raise NotImplementedError('Belief estimator not specified, MLP or ChebNet ?')
         self.linbp = LinBP(args.iterations, out_dim)
+    
+        if args.graph_learn:
+            self.graph_learner1 = GraphLearner(num_features, hidden,
+                                                 epsilon=args.epsilon,
+                                                 num_pers=args.num_pers)
+
+            self.graph_learner2 = GraphLearner(hidden,
+                                                  out_dim,
+                                                  epsilon=args.epsilon,
+                                                 num_pers=args.num_pers)
 
     def forward(self, raw_adj, normed_adj, features, y_onehot, train_mask):
         """
@@ -32,7 +43,7 @@ class CPGNN(nn.Module):
 
         return post_belief, R, reg_h_loss
 
-    def forward_one(self, normed_adj, features):
+    def forward_pretrain(self, normed_adj, features):
         """
         pretrain
         """

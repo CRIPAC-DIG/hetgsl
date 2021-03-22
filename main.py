@@ -48,7 +48,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
     print(f'Pre-train for {args.epoch_one} epochs')
     for epoch in tqdm(range(args.epoch_one)):
         model.train()
-        pred = model.forward_one(normed_adj, x)
+        pred = model.forward_pretrain(normed_adj, x)
         loss = F.cross_entropy(pred[train_mask], y[train_mask])
         optimizer.zero_grad()
         loss.backward()
@@ -107,6 +107,11 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', type=int, default=2000)
     parser.add_argument('--iterations', type=int, default=1)
     parser.add_argument('--model', type=str, default='gcn')
+
+    parser.add_argument('--graph_learn', action='store_true', default=False)
+    parser.add_argument('--epsilon', type=float, default=0.)
+    parser.add_argument('--num_pers', type=int, default=4)
+
     args = parser.parse_args()
 
     log_dir = 'log/cpgnn'
