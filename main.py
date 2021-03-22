@@ -15,12 +15,19 @@ from util import edge_index_to_sparse_tensor, Logger, mymkdir, nowdt
 
 
 @torch.no_grad()
-def test(model, raw_adj, normed_adj, x, y, y_onehot, train_mask, val_mask, test_mask):
+def test(model, raw_adj, normed_adj, x, y, y_onehot, train_mask, val_mask, test_mask, last_logits):
     model.eval()
     accs = []
     with torch.no_grad():
-        pred = F.softmax(model.forward(raw_adj, normed_adj, x,
-                               y_onehot, train_mask), dim=-1)
+        logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_one(last_logits, train_mask)
+        first_adj = cur_normed_adj
+        last_logits = logits.detach()
+        
+        for _ in range(args.max_iter):
+            logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_two(node_vec, last_logits, train_mask, first_adj)
+
+        pred = logits
+
         for mask in (train_mask, val_mask, test_mask):
             cur_pred = pred[mask].max(1)[1]
             acc = cur_pred.eq(y[mask]).sum().item() / mask.sum().item()
@@ -61,7 +68,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         loss.backward()
         optimizer.step()
     
-    last_logits = pred
+    last_logits = pred.detach()
     for epoch in tqdm(range(args.epoch_pretrain, args.epoch)):
         if epoch == args.epoch_pretrain:
             print('\n**** Start to train LinBP ****\n')
@@ -70,7 +77,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
 
         logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_one(last_logits, train_mask)
         first_adj = cur_normed_adj
-        last_logits = logits
+        last_logits = logits.detach()
         
         loss1 = F.cross_entropy(logits[train_mask], y[train_mask])
 
@@ -90,7 +97,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         optimizer.step()
 
         accs = test(model, raw_adj, normed_adj, x, y,
-                    y_onehot, train_mask, val_mask, test_mask)
+                    y_onehot, train_mask, val_mask, test_mask, last_logits)
         if accs[1] > best_val_acc:
             best_val_acc = accs[1]
             choosed_test_acc = accs[2]
@@ -141,6 +148,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_iter', type=int, default=10)
     parser.add_argument('--skip_conn', type=float, default=0.8)
     parser.add_argument('--update_ratio', type=float, default=0.1)
+
+    parser.add_argument('--post', action='store_true')
 
     
 
