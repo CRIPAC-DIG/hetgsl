@@ -88,7 +88,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
 
         loss = loss1 + loss2 / args.max_iter
 
-        # pred = model.forward(raw_adj, normed_adj, x, y_onehot, train_mask)
+        # pred = model.forward(raw_adj, normed_adj, x, y_onehot, train_mask) 
         reg_h_loss = torch.norm(model.H.sum(dim=1), p=1)
         # loss = F.cross_entropy(pred[train_mask], y[train_mask]) + reg_h_loss
         loss += reg_h_loss
@@ -105,9 +105,9 @@ def train(dataset, train_mask, val_mask, test_mask, args):
             best_val_epoch = epoch
         else:
             improved = ''
-        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}{improved}')
-        # if epoch - best_val_epoch > 100:
-        #     break
+        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}/{choosed_test_acc:.4f}{improved}')
+        if epoch - best_val_epoch > args.patience:
+            break
     return choosed_test_acc
 
 def main(args):
@@ -151,6 +151,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--post', action='store_true')
 
+    parser.add_argument('--patience', type=int, default=100)
     
 
     args = parser.parse_args()
