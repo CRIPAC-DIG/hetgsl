@@ -49,7 +49,7 @@ class CPGNN(nn.Module):
         if mulH:
             assert logits is not None
             assert y_onehot is not None
-            pred = F.softmax(logits)
+            pred = F.softmax(logits, dim=1)
             y_train = pred * (1 - train_mask[:, None].float()) + y_onehot * train_mask[:, None]
             raw_adj = raw_adj * (y_train @ self.H @ y_train.T)
         

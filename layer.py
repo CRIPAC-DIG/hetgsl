@@ -4,7 +4,6 @@ import warnings
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, ChebConv
 
 from util import normalize_sparse_tensor, row_sum_one_normalize
 
@@ -21,20 +20,6 @@ class MLP(nn.Module):
         x = self.lin1(input)
         x = F.relu(F.dropout(x, p=self.dropout, training=self.training))
         return self.lin2(x)
-
-
-class ChebNet(nn.Module):
-    def __init__(self, num_features, hidden, out_dim, dropout):
-        super(ChebNet, self).__init__()
-        self.conv1 = ChebConv(num_features, hidden, K=2)
-        self.conv2 = ChebConv(hidden, out_dim, K=2)
-        self.dropout = dropout
-
-    def forward(self, x, edge_index, edge_weight):
-        x = F.relu(self.conv1(x, edge_index, edge_weight))
-        x = F.dropout(x, training=self.training, p=self.dropout)
-        x = self.conv2(x, edge_index, edge_weight)
-        return x
 
 
 class GCNLayer(nn.Module):
@@ -75,6 +60,79 @@ class GCN(nn.Module):
         # return logits, node_vec
         return logits, node_vec
 
+class ChebConv(nn.Module):
+    """
+    The ChebNet convolution operation.
+    :param in_c: int, number of input channels.
+    :param out_c: int, number of output channels.
+    :param K: int, the order of Chebyshev Polynomial.
+    """
+
+    def __init__(self, in_c, out_c, K, bias=True, normalize=True):
+        super(ChebConv, self).__init__()
+        self.normalize = normalize
+
+        self.weight = nn.Parameter(torch.Tensor(
+            K, in_c, out_c))  # [K, in_c, out_c]
+        nn.init.xavier_normal_(self.weight)
+
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(out_c))
+            nn.init.zeros_(self.bias)
+        else:
+            self.register_parameter("bias", None)
+
+        self.K = K
+
+    def forward(self, inputs, laplacian, lambda_max=2):
+        """
+        :param inputs: the input data, [B, N, D]
+        :param graph: the graph structure, [N, N]
+        :return: convolution result, [B, N, C]
+        """
+        # pdb.set_trace()
+        I = torch.eye(laplacian.shape[0]).cuda()
+        # L = I - normalize_adj(graph)
+        # L = 2 * laplacian / lambda_max - I
+        L = laplacian
+
+        Tx_0 = inputs
+        Tx_1 = inputs  # dummy
+        out = torch.matmul(Tx_0, self.weight[0])
+
+        if self.K > 1:
+            Tx_1 = L @ inputs
+            out = out + torch.matmul(Tx_1, self.weight[1])
+
+        for k in range(2, self.K):
+            Tx_2 = 2. * L @ Tx_1 - Tx_0
+            out = out + Tx_2 @ self.weight[k]
+            Tx_0, Tx_1 = Tx_1, Tx_2
+
+        if self.bias is not None:
+            out += self.bias
+
+        return out
+
+
+class ChebNet(nn.Module):
+    def __init__(self, in_c, hid_c, out_c, dropout, K=2):
+        """
+        :param in_c: int, number of input channels.
+        :param hid_c: int, number of hidden channels.
+        :param out_c: int, number of output channels.
+        :param K:
+        """
+        super(ChebNet, self).__init__()
+        self.dropout = dropout
+        self.conv1 = ChebConv(in_c=in_c, out_c=hid_c, K=K)
+        self.conv2 = ChebConv(in_c=hid_c, out_c=out_c, K=K)
+
+    def forward(self, laplacian, input):
+        node_vec = F.dropout(F.relu(self.conv1(input, laplacian)),
+                             p=self.dropout, training=self.training)
+        logits = self.conv2(node_vec, laplacian)
+        return logits.squeeze(), node_vec.squeeze()
 
 class CompatibilityLayer(nn.Module):
     @staticmethod

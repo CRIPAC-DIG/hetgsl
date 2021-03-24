@@ -106,8 +106,8 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         else:
             improved = ''
         print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}/{choosed_test_acc:.4f}{improved}')
-        if epoch - best_val_epoch > args.patience:
-            break
+        # if epoch - best_val_epoch > args.patience:
+        #     break
     return choosed_test_acc
 
 def main(args):
@@ -123,9 +123,9 @@ def main(args):
         # break
         print('\n\n\n')
     
-    print(f'For {len(dataset["train_masks"])} splits')
-    print(sorted(test_accs))
-    print(f'Mean test acc {np.mean(test_accs):.4f} \pm {np.std(test_accs):.4f}')
+        print(f'For {len(test_accs)} splits')
+        print(sorted(test_accs))
+        print(f'Mean test acc {np.mean(test_accs):.4f} \pm {np.std(test_accs):.4f}')
 
 
 if __name__ == '__main__':
@@ -144,14 +144,14 @@ if __name__ == '__main__':
     parser.add_argument('--mulH', action='store_true', default=False)
     parser.add_argument('--epsilon', type=float, default=0.)
     parser.add_argument('--num_pers', type=int, default=4)
-    parser.add_argument('--eps_adj', type=float, default=4e-5)
+    # parser.add_argument('--eps_adj', type=float, default=4e-5)
     parser.add_argument('--max_iter', type=int, default=10)
     parser.add_argument('--skip_conn', type=float, default=0.8)
     parser.add_argument('--update_ratio', type=float, default=0.1)
 
     parser.add_argument('--post', action='store_true')
 
-    parser.add_argument('--patience', type=int, default=100)
+    # parser.add_argument('--patience', type=int, default=100)
     
 
     args = parser.parse_args()
