@@ -106,8 +106,8 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         else:
             improved = ''
         print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}/{choosed_test_acc:.4f}{improved}')
-        # if epoch - best_val_epoch > args.patience:
-        #     break
+        if epoch - best_val_epoch > args.patience:
+            break
     return choosed_test_acc
 
 def main(args):
@@ -151,7 +151,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--post', action='store_true')
 
-    # parser.add_argument('--patience', type=int, default=100)
+    parser.add_argument('--patience', type=int, default=2000)
     
 
     args = parser.parse_args()
