@@ -152,6 +152,8 @@ if __name__ == '__main__':
     parser.add_argument('--post', action='store_true')
 
     parser.add_argument('--patience', type=int, default=2000)
+
+    parser.add_argument('--anchor', action='store_true')
     
 
     args = parser.parse_args()

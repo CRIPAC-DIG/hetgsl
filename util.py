@@ -102,3 +102,12 @@ class Logger(object):
         #you might want to specify some extra behavior here.
         pass
     
+
+def sample_anchors(node_vec, s):
+    """
+    node_vec: (n, d) tensor
+    s: int, number of samples
+    """
+    n = node_vec.shape[0]
+    idx = torch.randperm(n)[:s]
+    return node_vec[idx]
