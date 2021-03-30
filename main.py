@@ -152,6 +152,8 @@ if __name__ == '__main__':
     parser.add_argument('--post', action='store_true')
 
     parser.add_argument('--patience', type=int, default=2000)
+
+    parser.add_argument('--H_ratio', type=float, default=0.5)
     
 
     args = parser.parse_args()

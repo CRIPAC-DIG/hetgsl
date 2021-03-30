@@ -51,7 +51,10 @@ class CPGNN(nn.Module):
             assert y_onehot is not None
             pred = F.softmax(logits, dim=1)
             y_train = pred * (1 - train_mask[:, None].float()) + y_onehot * train_mask[:, None]
-            raw_adj = raw_adj * (y_train @ self.H @ y_train.T)
+            H_ratio = self.args.H_ratio
+            H_coef = y_train @ self.H @ y_train.T
+            E_coef = torch.ones_like(H_coef, device=H_coef.device)
+            raw_adj = raw_adj * (H_ratio * H_coef + (1-H_ratio) * E_coef)
         
         raw_adj = learner.build_epsilon_neighbourhood(raw_adj, markoff_value=0)
         adj = row_sum_one_normalize(raw_adj)
