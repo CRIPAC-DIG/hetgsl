@@ -23,13 +23,14 @@ class MLP(nn.Module):
 
 
 class GCNLayer(nn.Module):
-    def __init__(self, in_features, out_features, bias=False):
+    def __init__(self, in_features, out_features, bias=True):
         super(GCNLayer, self).__init__()
         self.weight = torch.Tensor(in_features, out_features)
         self.weight = nn.Parameter(nn.init.xavier_uniform_(self.weight))
         if bias:
             self.bias = torch.Tensor(out_features)
-            self.bias = nn.Parameter(nn.init.xavier_uniform_(self.bias))
+            # self.bias = nn.Parameter(nn.init.xavier_uniform_(self.bias))
+            self.bias = nn.Parameter(nn.init.zeros_(self.bias))
         else:
             self.register_parameter('bias', None)
 
