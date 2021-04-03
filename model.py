@@ -25,7 +25,6 @@ class CPGNN(nn.Module):
             self.belief_estimator = GCN(num_features, hidden, out_dim, args.dropout)
         else:
             raise NotImplementedError('Belief estimator not specified, MLP or ChebNet ?')
-        # self.linbp = LinBP(args.iterations, out_dim)
         self.n_post_iter = args.n_post_iter
         self.H = nn.Parameter(torch.zeros(out_dim, out_dim))
         self.H_inited = False
@@ -42,7 +41,7 @@ class CPGNN(nn.Module):
                                                   epsilon=args.epsilon,
                                                  num_pers=args.num_pers)
 
-    def learn_graph(self, learner:GraphLearner, features, train_mask, mulH=False, logits=None, y_onehot=None):
+    def learn_graph(self, learner:GraphLearner, features, train_mask, first_adj=None, mulH=False, logits=None, y_onehot=None):
 
         raw_adj = learner(features)
 
@@ -58,9 +57,12 @@ class CPGNN(nn.Module):
         
         raw_adj = learner.build_epsilon_neighbourhood(raw_adj, markoff_value=0)
         adj = row_sum_one_normalize(raw_adj)
-        adj = self.args.skip_conn * self.dataset['normed_adj'] + (1 - self.args.skip_conn) * adj
 
-        return raw_adj, adj
+        if first_adj is not None:
+            alpha, beta = self.args.alpha, self.args.beta
+            adj = alpha * self.dataset['normed_adj'] + beta * first_adj + (1-alpha - beta) * adj 
+
+        return adj
 
     def forward_pretrain(self, normed_adj, features):
         """
@@ -69,32 +71,32 @@ class CPGNN(nn.Module):
         return self.belief_estimator(normed_adj, features)[0]
 
 
-    def forward_one(self, logits, train_mask):
+    def forward_one(self, train_mask):
         """
         First iteration for graph learn
         """
         dataset = self.dataset
         x = dataset['features']
-        # normed_adj = dataset['normed_adj'].cuda()
+        normed_adj = dataset['normed_adj'].cuda()
         raw_adj = dataset['raw_adj']
         y = dataset['labels']
         y_onehot = F.one_hot(y)
+
+        logits, node_vec = self.belief_estimator(normed_adj, x)
+
         if self.args.mulH and not self.H_inited:
-            self.init_H(raw_adj, y_onehot, logits, train_mask)
+            self.init_H(raw_adj, y_onehot, logits, train_mask)        
         
-        cur_raw_adj, cur_normed_adj = self.learn_graph(self.graph_learner1, x, train_mask, mulH=self.args.mulH, logits=logits, y_onehot=y_onehot)
-
-        logits, node_vec = self.belief_estimator(cur_normed_adj, x)
-
         if self.args.post:
             logits = self.post_process(raw_adj, logits, y_onehot)
+        
+        first_adj = self.learn_graph(self.graph_learner1, x, train_mask, first_adj=None, mulH=self.args.mulH, logits=logits, y_onehot=y_onehot)
 
-        return logits, node_vec, cur_raw_adj, cur_normed_adj
+        return logits, node_vec, first_adj
 
     def forward_two(self, node_vec, logits, train_mask, first_adj):
         dataset = self.dataset
         x = dataset['features']
-        # normed_adj = dataset['normed_adj'].cuda()
         raw_adj = dataset['raw_adj']
         y = dataset['labels'].cuda()
         y_onehot = F.one_hot(y)
@@ -102,14 +104,13 @@ class CPGNN(nn.Module):
         if self.args.mulH:
             assert self.H_inited
 
-        cur_raw_adj, cur_normed_adj = self.learn_graph(self.graph_learner2, node_vec, train_mask, mulH=self.args.mulH, logits=logits, y_onehot=y_onehot)
-        cur_normed_adj = self.args.update_ratio * cur_normed_adj + (1 - self.args.update_ratio) * first_adj
+        cur_normed_adj = self.learn_graph(self.graph_learner2, node_vec, train_mask, first_adj=first_adj, mulH=self.args.mulH, logits=logits, y_onehot=y_onehot)
         logits, node_vec = self.belief_estimator(cur_normed_adj, x)
 
         if self.args.post:
             logits = self.post_process(raw_adj, logits, y_onehot)
 
-        return logits, node_vec, cur_raw_adj, cur_normed_adj
+        return logits, node_vec
         
 
     def init_H(self, raw_adj, y_onehot, logits, train_mask):

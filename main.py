@@ -19,12 +19,12 @@ def test(model, raw_adj, normed_adj, x, y, y_onehot, train_mask, val_mask, test_
     model.eval()
     accs = []
     with torch.no_grad():
-        logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_one(last_logits, train_mask)
-        first_adj = cur_normed_adj
+        logits, node_vec, first_adj = model.forward_one(train_mask)
+        # first_adj = cur_normed_adj
         last_logits = logits.detach()
         
         for _ in range(args.max_iter):
-            logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_two(node_vec, last_logits, train_mask, first_adj)
+            logits, node_vec = model.forward_two(node_vec, last_logits, train_mask, first_adj)
 
         pred = logits
 
@@ -68,22 +68,22 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         loss.backward()
         optimizer.step()
     
-    last_logits = pred.detach()
+    # last_logits = pred.detach()
     for epoch in tqdm(range(args.epoch_pretrain, args.epoch)):
         if epoch == args.epoch_pretrain:
             print('\n**** Start to train LinBP ****\n')
         model.train()
 
 
-        logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_one(last_logits, train_mask)
-        first_adj = cur_normed_adj
+        logits, node_vec, first_adj = model.forward_one(train_mask)
+        # first_adj = cur_normed_adj
         last_logits = logits.detach()
         
-        loss1 = F.cross_entropy(logits[train_mask], y[train_mask])
+        # loss1 = F.cross_entropy(logits[train_mask], y[train_mask])
 
         loss2 = 0
         for _ in range(args.max_iter):
-            logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_two(node_vec, last_logits, train_mask, first_adj)
+            logits, node_vec = model.forward_two(node_vec, last_logits, train_mask, first_adj)
             loss2 += F.cross_entropy(logits[train_mask], y[train_mask])
 
         # loss = loss1 + loss2 / args.max_iter
@@ -144,14 +144,14 @@ if __name__ == '__main__':
     parser.add_argument('--epsilon', type=float, default=0.)
     parser.add_argument('--num_pers', type=int, default=4)
     parser.add_argument('--max_iter', type=int, default=10)
-    parser.add_argument('--skip_conn', type=float, default=0.8)
-    parser.add_argument('--update_ratio', type=float, default=0.1)
+    parser.add_argument('--alpha', type=float, default=0.8)
+    parser.add_argument('--beta', type=float, default=0.18)
 
     parser.add_argument('--post', action='store_true')
 
     parser.add_argument('--patience', type=int, default=2000)
 
-    parser.add_argument('--H_ratio', type=float, default=0.5)
+    parser.add_argument('--H_ratio', type=float, default=1.0)
 
     parser.add_argument('--seed', type=int, default=2020)
     
