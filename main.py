@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 from dataset_utils import build_dataset, get_mask
 from model import CPGNN
-from util import edge_index_to_sparse_tensor, Logger, mymkdir, nowdt
+from util import edge_index_to_sparse_tensor, Logger, mymkdir, nowdt, set_seed
 
 
 @torch.no_grad()
@@ -111,6 +111,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
 
 def main(args):
     print(nowdt())
+    set_seed(args.seed)
     dataset = build_dataset(args.dataset, to_cuda=True)
 
     test_accs = []
@@ -151,6 +152,8 @@ if __name__ == '__main__':
     parser.add_argument('--patience', type=int, default=2000)
 
     parser.add_argument('--H_ratio', type=float, default=0.5)
+
+    parser.add_argument('--seed', type=int, default=2020)
     
 
     args = parser.parse_args()
