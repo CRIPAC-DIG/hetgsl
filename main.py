@@ -86,11 +86,10 @@ def train(dataset, train_mask, val_mask, test_mask, args):
             logits, node_vec, cur_raw_adj, cur_normed_adj = model.forward_two(node_vec, last_logits, train_mask, first_adj)
             loss2 += F.cross_entropy(logits[train_mask], y[train_mask])
 
-        loss = loss1 + loss2 / args.max_iter
+        # loss = loss1 + loss2 / args.max_iter
+        loss = loss2 / args.max_iter
 
-        # pred = model.forward(raw_adj, normed_adj, x, y_onehot, train_mask) 
         reg_h_loss = torch.norm(model.H.sum(dim=1), p=1)
-        # loss = F.cross_entropy(pred[train_mask], y[train_mask]) + reg_h_loss
         loss += reg_h_loss
         optimizer.zero_grad()
         loss.backward()
@@ -120,7 +119,6 @@ def main(args):
         print(f'Train: {train_mask.sum().item()}, Val: {val_mask.sum().item()}, Test: {test_mask.sum().item()}\n')
         test_acc = train(dataset, train_mask.cuda(), val_mask.cuda(), test_mask.cuda(), args)
         test_accs.append(test_acc)
-        # break
         print('\n\n\n')
     
         print(f'For {len(test_accs)} splits')
@@ -144,7 +142,6 @@ if __name__ == '__main__':
     parser.add_argument('--mulH', action='store_true', default=False)
     parser.add_argument('--epsilon', type=float, default=0.)
     parser.add_argument('--num_pers', type=int, default=4)
-    # parser.add_argument('--eps_adj', type=float, default=4e-5)
     parser.add_argument('--max_iter', type=int, default=10)
     parser.add_argument('--skip_conn', type=float, default=0.8)
     parser.add_argument('--update_ratio', type=float, default=0.1)

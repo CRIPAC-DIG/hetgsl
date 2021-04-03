@@ -68,16 +68,6 @@ class CPGNN(nn.Module):
         """
         return self.belief_estimator(normed_adj, features)[0]
 
-    def forward(self, raw_adj, normed_adj, features, y_onehot, train_mask):
-        """
-        post_process
-        """
-        logits = self.belief_estimator(normed_adj, features)[0]
-        # post_belief, reg_h_loss = self.linbp(logits, raw_adj, y_onehot, train_mask)
-        if not self.H_inited:
-            self.init_H(raw_adj, y_onehot, logits, train_mask)
-        post_belief = self.post_process(raw_adj, logits, y_onehot)
-        return post_belief
 
     def forward_one(self, logits, train_mask):
         """
