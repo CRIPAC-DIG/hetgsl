@@ -64,7 +64,12 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            pred = model.forward_pretrain(normed_adj, x)
         accs = get_acc(pred, y, train_mask, val_mask, test_mask)
+
 
         if accs[1] > best_val_acc:
             best_val_acc = accs[1]
@@ -87,6 +92,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
     
     # last_logits = pred.detach()
     for epoch in tqdm(range(args.epoch_pretrain, args.epoch)):
+        model.train()
         if epoch == args.epoch_pretrain:
             print('\n**** Start to train LinBP ****\n')
         model.train()

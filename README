@@ -1,0 +1,3 @@
+## run baseline of GCN, ChebNet, GAT
+`python main_baseline.py --model gcn --dataset Cora`
+

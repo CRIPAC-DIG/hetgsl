@@ -103,6 +103,7 @@ def build_dataset(name, sparse_init_adj=False, to_cuda=False):
     num_class = labels.max().item() + 1
 
     dataset = {
+        'raw_dataset': dataset, 
         'raw_adj': raw_adj,
         'normed_adj': normed_adj,
         'features': features,
