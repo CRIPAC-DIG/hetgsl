@@ -13,7 +13,7 @@ import numpy as np
 import torch.nn.functional as F
 import torch_geometric.transforms as T
 
-from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork
+from torch_geometric.datasets import Planetoid, WebKB, WikipediaNetwork, Actor
 
 
 def to_scipy_sparse_matrix(edge_index, edge_attr, num_node):
@@ -69,8 +69,10 @@ def build_dataset(name, sparse_init_adj=False, to_cuda=False):
         dataset =  Planetoid(root, name, 'random', transform=T.NormalizeFeatures())
     elif name in ['Squirrel', 'Chameleon']:
         dataset = WikipediaNetwork(root, name, transform=T.NormalizeFeatures())
-    elif name in ['Texas', ]:
+    elif name in ['Texas', 'Cornell', 'Wisconsin']:
         dataset = WebKB(root, name, transform=T.NormalizeFeatures())
+    elif name in ['Actor']:
+        dataset = Actor(os.path.join(root, 'film'), transform=T.NormalizeFeatures())
     else:
         raise NotImplementedError(f'Not implemented for dataset {name}')
 
@@ -135,7 +137,7 @@ def get_mask(dataset):
         return (train_masks, val_masks, test_masks)
 
     
-    elif isinstance(dataset, WebKB) or isinstance(dataset, WikipediaNetwork):
+    elif isinstance(dataset, WebKB) or isinstance(dataset, WikipediaNetwork) or isinstance(dataset, Actor):
         for i in range(data.train_mask.shape[1]):
             train_mask = data.train_mask[:, i]
             val_mask = data.val_mask[:, i]
