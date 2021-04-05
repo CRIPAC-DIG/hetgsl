@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 from dataset_utils import build_dataset, get_mask
 from model import CPGNN
-from util import edge_index_to_sparse_tensor, Logger, mymkdir, nowdt, set_seed
+from util import edge_index_to_sparse_tensor, Logger, mymkdir, nowdt, set_seed, get_acc
 
 
 @torch.no_grad()
@@ -28,10 +28,7 @@ def test(model, raw_adj, normed_adj, x, y, y_onehot, train_mask, val_mask, test_
 
         pred = logits
 
-        for mask in (train_mask, val_mask, test_mask):
-            cur_pred = pred[mask].max(1)[1]
-            acc = cur_pred.eq(y[mask]).sum().item() / mask.sum().item()
-            accs.append(acc)
+    accs = get_acc(pred, y, train_mask, val_mask, test_mask)
     return accs
 
 def train(dataset, train_mask, val_mask, test_mask, args):
@@ -67,6 +64,26 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        accs = get_acc(pred, y, train_mask, val_mask, test_mask)
+
+        if accs[1] > best_val_acc:
+            best_val_acc = accs[1]
+            choosed_test_acc = accs[2]
+            improved = '*'
+            best_val_epoch = epoch
+        else:
+            improved = ''
+        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}/{choosed_test_acc:.4f}{improved}')
+
+        if args.only_pretrain and epoch - best_val_epoch > args.patience:
+            break
+
+    if args.only_pretrain:
+        return choosed_test_acc
+
+    best_val_acc = 0
+    best_val_epoch = -1
+    choosed_test_acc = 0
     
     # last_logits = pred.detach()
     for epoch in tqdm(range(args.epoch_pretrain, args.epoch)):
@@ -124,7 +141,7 @@ def main(args):
     
         print(f'For {len(test_accs)} splits')
         print(sorted(test_accs))
-        print(f'Mean test acc {np.mean(test_accs):.4f} \pm {np.std(test_accs):.4f}')
+        print(f'Mean test acc {np.mean(test_accs)*100:.2f} \pm {np.std(test_accs)*100:.2f}')
 
 
 if __name__ == '__main__':
@@ -155,6 +172,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--seed', type=int, default=2020)
     
+    parser.add_argument('--only_pretrain', action='store_true', default=False)
+
 
     args = parser.parse_args()
 

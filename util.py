@@ -102,3 +102,12 @@ class Logger(object):
         #you might want to specify some extra behavior here.
         pass
     
+
+def get_acc(pred, y, train_mask, val_mask, test_mask):
+    accs = []
+    for mask in (train_mask, val_mask, test_mask):
+        cur_pred = pred[mask].max(1)[1]
+        acc = cur_pred.eq(y[mask]).sum().item() / mask.sum().item()
+        accs.append(acc)
+
+    return accs
