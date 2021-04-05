@@ -70,6 +70,22 @@ class CPGNN(nn.Module):
         """
         return self.belief_estimator(normed_adj, features)[0]
 
+    def forward_cpgnn(self, train_mask):
+        dataset = self.dataset
+        x = dataset['features']
+        normed_adj = dataset['normed_adj'].cuda()
+        raw_adj = dataset['raw_adj']
+        y = dataset['labels']
+        y_onehot = F.one_hot(y)
+
+        logits, node_vec = self.belief_estimator(normed_adj, x)
+        
+        if not self.H_inited:
+            self.init_H(raw_adj, y_onehot, logits, train_mask)
+
+        logits = self.post_process(raw_adj, logits, y_onehot)
+
+        return logits
 
     def forward_one(self, train_mask):
         """
