@@ -119,7 +119,7 @@ def main(args):
     
         print(f'For {len(test_accs)} splits')
         print(sorted(test_accs))
-        print(f'Mean test acc {np.mean(test_accs):.4f} \pm {np.std(test_accs):.4f}')
+        print(f'Mean test acc {np.mean(test_accs)*100:.2f} \pm {np.std(test_accs)*100:.2f}')
 
 
 if __name__ == '__main__':
@@ -134,7 +134,6 @@ if __name__ == '__main__':
     parser.add_argument('--n_post_iter', type=int, default=1)
     parser.add_argument('--model', type=str, default='gcn')
 
-    parser.add_argument('--mulH', action='store_true', default=False)
     parser.add_argument('--epsilon', type=float, default=0.)
     parser.add_argument('--num_pers', type=int, default=4)
     parser.add_argument('--max_iter', type=int, default=10)
