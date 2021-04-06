@@ -189,6 +189,5 @@ if __name__ == '__main__':
     sys.stdout = Logger(log_file_path)
 
     print(args)
-
     main(args)
 

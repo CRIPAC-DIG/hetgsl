@@ -33,6 +33,8 @@ def normalize_sparse_tensor(adj, fill_value=1):
 
 
 def row_sum_one_normalize(raw_adj):
+    # if not raw_adj.min().item() >=0:
+    #     pdb.set_trace()
     assert raw_adj.min().item() >= 0
 
     row_sum = raw_adj.sum(1, keepdim=True)

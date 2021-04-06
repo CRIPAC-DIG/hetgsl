@@ -130,6 +130,8 @@ class CPGNN(nn.Module):
         
 
     def init_H(self, raw_adj, y_onehot, logits, train_mask):
+        # pdb.set_trace() 
+
         assert not self.H_inited
         print('Initing H...')
         with torch.no_grad():
