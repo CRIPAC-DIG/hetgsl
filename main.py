@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F 
+import torch.nn.functional as F
 
 from dataset_utils import build_dataset, get_mask
 from model import CPGNN
@@ -65,23 +65,24 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         loss.backward()
         optimizer.step()
 
-        model.eval()
-        with torch.no_grad():
-            pred = model.forward_pretrain(normed_adj, x)
-        accs = get_acc(pred, y, train_mask, val_mask, test_mask)
+        if args.only_pretrain:
+            model.eval()
+            with torch.no_grad():
+                pred = model.forward_pretrain(normed_adj, x)
+            accs = get_acc(pred, y, train_mask, val_mask, test_mask)
 
 
-        if accs[1] > best_val_acc:
-            best_val_acc = accs[1]
-            choosed_test_acc = accs[2]
-            improved = '*'
-            best_val_epoch = epoch
-        else:
-            improved = ''
-        print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}/{choosed_test_acc:.4f}{improved}')
+            if accs[1] > best_val_acc:
+                best_val_acc = accs[1]
+                choosed_test_acc = accs[2]
+                improved = '*'
+                best_val_epoch = epoch
+            else:
+                improved = ''
+            print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}/{choosed_test_acc:.4f}{improved}')
 
-        if args.only_pretrain and epoch - best_val_epoch > args.patience:
-            break
+            if epoch - best_val_epoch > args.patience:
+                break
 
     if args.only_pretrain:
         return choosed_test_acc
@@ -102,15 +103,15 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         # first_adj = cur_normed_adj
         last_logits = logits.detach()
         
-        # loss1 = F.cross_entropy(logits[train_mask], y[train_mask])
+        loss1 = F.cross_entropy(logits[train_mask], y[train_mask])
 
         loss2 = 0
         for _ in range(args.max_iter):
             logits, node_vec = model.forward_two(node_vec, last_logits, train_mask, first_adj)
             loss2 += F.cross_entropy(logits[train_mask], y[train_mask])
 
-        # loss = loss1 + loss2 / args.max_iter
-        loss = loss2 / args.max_iter
+        loss = loss1 + loss2 / args.max_iter
+        # loss = loss2 / args.max_iter
 
         reg_h_loss = torch.norm(model.H.sum(dim=1), p=1)
         loss += reg_h_loss
