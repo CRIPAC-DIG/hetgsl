@@ -11,3 +11,5 @@ runs/
 *.zip
 *.gz
 **/.ipynb_checkpoints/
+*.pdf
+*.npy
