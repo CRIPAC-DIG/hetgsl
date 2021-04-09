@@ -155,7 +155,10 @@ def main(args):
             H = model.H.data.cpu().numpy()
             with open(f'{args.dataset}_savedH.npy', 'wb') as f:
                 np.save(f, H)
+
+            torch.save(model, f'{args.dataset}_model')
             break
+            
 
 
 if __name__ == '__main__':

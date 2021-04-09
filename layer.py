@@ -35,6 +35,7 @@ class GCNLayer(nn.Module):
             self.register_parameter('bias', None)
 
     def forward(self, input, normed_adj, batch_norm=True):
+        # pdb.set_trace()
         support = torch.matmul(input, self.weight)
         output = torch.matmul(normed_adj, support)
 

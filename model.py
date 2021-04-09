@@ -44,7 +44,6 @@ class CPGNN(nn.Module):
     def learn_graph(self, learner:GraphLearner, features, train_mask, first_adj=None, mulH=False, logits=None, y_onehot=None):
 
         raw_adj = learner(features)
-
         if mulH:
             assert logits is not None
             assert y_onehot is not None
@@ -93,7 +92,7 @@ class CPGNN(nn.Module):
         """
         dataset = self.dataset
         x = dataset['features']
-        normed_adj = dataset['normed_adj'].cuda()
+        normed_adj = dataset['normed_adj']
         raw_adj = dataset['raw_adj']
         y = dataset['labels']
         y_onehot = F.one_hot(y)
@@ -111,10 +110,11 @@ class CPGNN(nn.Module):
         return logits, node_vec, first_adj
 
     def forward_two(self, node_vec, logits, train_mask, first_adj):
+        # pdb.set_trace()
         dataset = self.dataset
         x = dataset['features']
         raw_adj = dataset['raw_adj']
-        y = dataset['labels'].cuda()
+        y = dataset['labels']
         y_onehot = F.one_hot(y)
 
         if self.args.mulH:

@@ -70,7 +70,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         if  epoch - best_val_epoch > args.patience:
             break
 
-    return choosed_test_acc
+    return choosed_test_acc, model
 
 
 
@@ -83,7 +83,7 @@ def main(args):
     for i, (train_mask, val_mask, test_mask) in enumerate(zip(dataset['train_masks'], dataset['val_masks'], dataset['test_masks'])):
         print(f'***** Split {i} starts *****')
         print(f'Train: {train_mask.sum().item()}, Val: {val_mask.sum().item()}, Test: {test_mask.sum().item()}\n')
-        test_acc = train(dataset, train_mask.cuda(), val_mask.cuda(), test_mask.cuda(), args)
+        test_acc, model = train(dataset, train_mask.cuda(), val_mask.cuda(), test_mask.cuda(), args)
         test_accs.append(test_acc)
         print('\n\n\n')
     
@@ -91,6 +91,9 @@ def main(args):
         print(sorted(test_accs))
         print(f'Mean test acc {np.mean(test_accs)*100:.2f} \pm {np.std(test_accs)*100:.2f}')
 
+        if args.save:
+            torch.save(model, f'{args.dataset}_baseline_{args.model}_model')
+    
 
 if __name__ == '__main__':
     
@@ -109,7 +112,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--seed', type=int, default=2020)
     
-
+    parser.add_argument('--save', action='store_true', default=False)
     args = parser.parse_args()
 
     print(args)
