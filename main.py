@@ -102,7 +102,7 @@ def train(dataset, train_mask, val_mask, test_mask, args):
         print(f'Epoch {epoch} trian_loss: {loss.item():.4f} train_acc: {accs[0]:.4f}, val_acc: {accs[1]:.4f}, test_acc: {accs[2]:.4f}/{choosed_test_acc:.4f}{improved}')
         if epoch - best_val_epoch > args.patience:
             break
-    return choosed_test_acc
+    return choosed_test_acc, model
 
 def main(args):
     print(nowdt())
@@ -112,7 +112,7 @@ def main(args):
     for i, (train_mask, val_mask, test_mask) in enumerate(zip(dataset['train_masks'], dataset['val_masks'], dataset['test_masks'])):
         print(f'***** Split {i} starts *****')
         print(f'Train: {train_mask.sum().item()}, Val: {val_mask.sum().item()}, Test: {test_mask.sum().item()}\n')
-        test_acc = train(dataset, train_mask.cuda(), val_mask.cuda(), test_mask.cuda(), args)
+        test_acc, model = train(dataset, train_mask.cuda(), val_mask.cuda(), test_mask.cuda(), args)
         test_accs.append(test_acc)
         # break
         print('\n\n\n')
@@ -120,6 +120,10 @@ def main(args):
         print(f'For {len(test_accs)} splits')
         print(sorted(test_accs))
         print(f'Mean test acc {np.mean(test_accs)*100:.2f} \pm {np.std(test_accs)*100:.2f}')
+
+        if args.save:
+            torch.save(model, f'{args.dataset}_idgl_model.pth')
+            break
 
 
 if __name__ == '__main__':
@@ -142,7 +146,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--patience', type=int, default=100)
 
-    
+    parser.add_argument('--save', action='store_true', default=False)
 
     args = parser.parse_args()
 
