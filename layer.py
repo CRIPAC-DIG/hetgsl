@@ -144,9 +144,11 @@ class CompatibilityLayer(nn.Module):
         while not converge and i < max_iterations:
             prev_H = H
             # H /= tf.reduce_sum(H, axis=0, keepdims=True)
-            H /= H.sum(dim=0, keepdims=True)
+            # H /= H.sum(dim=0, keepdims=True)
+            H = H / (H.sum(dim=0, keepdims=True) + 1e-10)
             # H /= tf.reduce_sum(H, axis=1, keepdims=True)
-            H /= H.sum(dim=1, keepdims=True)
+            # H /= H.sum(dim=1, keepdims=True)
+            H = H / (H.sum(dim=1, keepdims=True) + 1e-10)
 
             # delta = tf.linalg.norm(H - prev_H, ord=1)
             delta = torch.norm(H - prev_H, p=1)

@@ -69,7 +69,7 @@ def build_dataset(name, sparse_init_adj=False, to_cuda=False):
         dataset =  Planetoid(root, name, 'random', transform=T.NormalizeFeatures())
     elif name in ['Squirrel', 'Chameleon']:
         dataset = WikipediaNetwork(root, name, transform=T.NormalizeFeatures())
-    elif name in ['Texas', ]:
+    elif name in ['Texas', 'Cornell', 'Wisconsin']:
         dataset = WebKB(root, name, transform=T.NormalizeFeatures())
     else:
         raise NotImplementedError(f'Not implemented for dataset {name}')
