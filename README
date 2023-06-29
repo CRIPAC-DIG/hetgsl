@@ -1,3 +1,4 @@
-#王礼萍 补充维护
+#王礼萍 补充完善该部分
+
 main 分支是论文描述的模型.
 combine 分支是简单将 IDGL 和 CPGNN 结合, 在 Cora 和 Citeseer 上好像比 main 要好
