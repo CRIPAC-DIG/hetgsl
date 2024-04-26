@@ -1,4 +1,3 @@
-#王礼萍 补充完善该部分
 <img src="hetgsl.png" alt="model" style="zoom: 50%;" />
 
 This is the code for the CIKN 2021 Paper: [Label-informed Graph Structure Learning for Node Classification](https://dl.acm.org/doi/abs/10.1145/3459637.3482129).
